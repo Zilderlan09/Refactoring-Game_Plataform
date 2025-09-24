@@ -1,66 +1,65 @@
-# Refactoring-Game_Plataform
+# 🎮 Gaming_Platform (CLI)
 
-Plataforma de jogos em linha de comando com **gestão de catálogo**, **contas (adulto/infantil/admin)**, **microtransações**, **ranking e achievements**, **fórum**, **patch/update**, **controle parental**, **suporte**, **matchmaking** e **compatibilidade cross-platform**.
+Plataforma de jogos em linha de comando com **catálogo**, **contas (adulto/infantil/admin)**, **microtransações**, **ranking + achievements**, **fórum**, **patch/update**, **controle parental**, **suporte**, **matchmaking** e **compatibilidade cross-platform**.
 
-## Sumário
-- [Arquitetura](#arquitetura)
-- [Funcionalidades](#funcionalidades)
-- [O que foi adicionado/alterado](#o-que-foi-adicionado e alterado)
-- [Como rodar](#como-rodar)
-- [Estrutura do projeto](#estrutura-do-projeto)
-- [Comandos principais no CLI](#comandos-principais-no-cli)
-- [Próximos passos](#próximos-passos)
-- [Licença](#licença)
+---
 
-## Arquitetura
+## 🧱 Arquitetura
 
-- **`game.py`**: núcleo de domínio/POO (modelos, regras e serviços).
-  - Tipos de jogo: `Jogo`, `JogoOnline`, `JogoOffline`
+- **`game.py`** — núcleo de domínio/POO:
+  - Jogos: `Jogo`, `JogoOnline`, `JogoOffline`
   - Usuários: `Usuario` (abstrata), `UsuarioAdulto`, `UsuarioInfantil`, `Admin`
   - Sistemas: `POOCoin`, `Achievement`, `PatchNote`, `MatchmakingQueue`, `Match`, `Plataforma`
-- **`main.py`**: interface **CLI** e menus (admin/usuário).
+- **`main.py`** — interface **CLI** e menus (admin/usuário)
 
-## Funcionalidades
+---
+
+## ✅ Funcionalidades
 
 | # | Requisito | Status |
 |---|-----------|--------|
-| 1 | **Game Library Management**: catálogo/loja de jogos, itens por jogo | ✅ |
-| 2 | **User Account Management**: criação de contas, login, preferências, saldo | ✅ |
-| 3 | **Multiplayer Matchmaking**: fila por jogo e criação de partida | ✅ |
-| 4 | **In-Game Purchases**: compra de itens com `POOCoin` | ✅ |
-| 5 | **Leaderboards & Achievements**: ranking por jogo + achievements por pontuação | ✅ |
-| 6 | **Community/Social**: fórum por jogo online (listar/postar) | ✅ |
-| 7 | **Game Update/Patch**: publicação admin + atualização local do usuário | ✅ |
-| 8 | **Parental Control**: aprovação de contas infantis e permissões de compra | ✅ |
-| 9 | **User Support/Helpdesk**: abertura e listagem de tickets | ✅ |
-| 10 | **Cross-Platform**: metadados de plataformas + preferência do usuário | ✅ |
+| 1 | 📚 **Catálogo de Jogos** (loja/itens) | ✅ |
+| 2 | 👤 **Contas & Preferências** (login, saldo, perfis) | ✅ |
+| 3 | 🤝 **Matchmaking** (fila por jogo, partida) | ✅ |
+| 4 | 🛒 **Microtransações** (POOCoin, itens in-game) | ✅ |
+| 5 | 🏆 **Ranking & Achievements** | ✅ |
+| 6 | 💬 **Fórum** (jogos online) | ✅ |
+| 7 | 🔧 **Patches/Updates** (admin publica, usuário atualiza) | ✅ |
+| 8 | 👪 **Controle Parental** (aprovação + permissões) | ✅ |
+| 9 | 🆘 **Suporte/Tickets** (abrir/listar) | ✅ |
+| 10| 🖥️ **Cross-Platform** (metadados + preferência do usuário) | ✅ |
 
-## O que foi adicionado/alterado
+---
 
-### Encapsulamento
-- `Usuario`:
-  - `__senha` (name mangling), `verificar_senha()` público.
-  - Atributos internos privatizados: `_jogos_adquiridos`, `_tickets`, `_mensagens`, `_achievements_desbloqueados`.
-  - API pública para acesso/ação: `possui_jogo`, `listar_jogos_nomes`, `get_registro_jogo`, `abrir_ticket`, `listar_tickets`, `adicionar_mensagem`, `listar_mensagens`.
-  - `saldo` com `@property` (somente leitura por cópia defensiva).
-  - `preferencia_plataforma` com setter validado e método `definir_preferencia_plataforma`.
-- `Jogo`:
-  - Loja agora é privada (`_loja`).
-  - Métodos: `adicionar_item_loja`, `listar_itens_loja` (cópia defensiva), `obter_preco_item`.
+## ✨ O que foi adicionado/alterado
 
-### Novos sistemas
-- **Achievements**: cadastro via admin (`registrar_achievement`) e desbloqueio automático em `registrar_achievements_desbloqueados`.
-- **Patch Management**: publicação (`publicar_patch`) com `versao_atual` + `listar_patches`; cliente atualiza com `atualizar_jogo`.
-- **Matchmaking**: `MatchmakingQueue` (fila por jogo) e `Match` (partida).
-- **Cross-Platform**: `Jogo.plataformas` e `Usuario.preferencia_plataforma` filtram listagem/compras.
+### 🔐 Encapsulamento reforçado
+- **`Usuario`**
+  - `__senha` (name mangling) + `verificar_senha()`
+  - Internos privados: `_jogos_adquiridos`, `_tickets`, `_mensagens`, `_achievements_desbloqueados`
+  - API pública: `possui_jogo()`, `listar_jogos_nomes()`, `get_registro_jogo()`,  
+    `abrir_ticket()`, `listar_tickets()`, `adicionar_mensagem()`, `listar_mensagens()`
+  - `saldo` somente leitura (cópia defensiva) 💳
+  - `preferencia_plataforma` com setter validado + `definir_preferencia_plataforma()` 🖥️📱🎮
+- **`Jogo`**
+  - Loja privada `_loja`
+  - API da loja: `adicionar_item_loja()`, `listar_itens_loja()` (cópia defensiva), `obter_preco_item()`
 
-### Qualidade de vida
-- Flag `notify=False` para suprimir prints na pré-configuração.
-- Correção de indentação no `menu_usuario` (erro anterior `IndentationError`).
+### 🧩 Novos sistemas
+- 🏅 **Achievements**: cadastro por jogo + desbloqueio automático por pontuação
+- 🔄 **Patch Management**: `versao_atual`, `publicar_patch()`, `listar_patches()`, `atualizar_jogo()`
+- 🤝 **Matchmaking**: `MatchmakingQueue` (fila por jogo) + `Match` (partida)
+- 🖥️📱🎮 **Cross-Platform**: `Jogo.plataformas` + `Usuario.preferencia_plataforma` (filtra listagem e valida compra)
 
-## Como rodar
+### 🛠️ Qualidade de vida
+- 🔇 `notify=False` para silenciar logs na pré-configuração
+- 🧹 Correções de indentação no `menu_usuario` (resolvido `IndentationError`)
 
-Pré-requisitos: **Python 3.9+**
+---
+
+## ▶️ Como rodar
+
+**Pré-requisitos**: Python **3.9+**
 
 ```bash
 # Clonar
