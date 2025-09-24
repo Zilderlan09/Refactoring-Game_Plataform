@@ -1,4 +1,4 @@
-# 🎮 Gaming_Platform (CLI)
+# 🎮 Gaming_Platform
 
 Plataforma de jogos em linha de comando com **catálogo**, **contas (adulto/infantil/admin)**, **microtransações**, **ranking + achievements**, **fórum**, **patch/update**, **controle parental**, **suporte**, **matchmaking** e **compatibilidade cross-platform**.
 
