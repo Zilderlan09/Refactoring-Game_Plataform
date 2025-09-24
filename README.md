@@ -5,7 +5,7 @@ Plataforma de jogos em linha de comando com **gestão de catálogo**, **contas (
 ## Sumário
 - [Arquitetura](#arquitetura)
 - [Funcionalidades](#funcionalidades)
-- [O que foi adicionado/alterado](#o-que-foi-adicionad oalterado)
+- [O que foi adicionado/alterado](#o-que-foi-adicionado e alterado)
 - [Como rodar](#como-rodar)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Comandos principais no CLI](#comandos-principais-no-cli)
