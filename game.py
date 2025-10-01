@@ -1,4 +1,3 @@
-# game.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional
@@ -59,19 +58,19 @@ class Jogo:
     def __init__(self, nome: str, preco: POOCoin, plataformas: Optional[Set[str]] = None):
         self.nome = nome
         self.preco = preco
-        self._loja: Dict[str, POOCoin] = {}          # <- privado
+        self._loja: Dict[str, POOCoin] = {}
         self.pontuacoes: Dict[str, int] = {}
         self.achievements: Dict[str, Achievement] = {}
         self.plataformas: Set[str] = set(plataformas or {"PC"})
         self.versao_atual: str = "1.0.0"
         self.patches: List[PatchNote] = []
 
-    # ---- Loja (encapsulada)
+    # ---- Loja
     def adicionar_item_loja(self, item: str, preco: POOCoin) -> None:
         self._loja[item] = preco
 
     def listar_itens_loja(self) -> Dict[str, POOCoin]:
-        return dict(self._loja)  # cópia defensiva
+        return dict(self._loja)
 
     def obter_preco_item(self, item: str) -> Optional[POOCoin]:
         return self._loja.get(item)
@@ -147,22 +146,22 @@ class Usuario(ABC):
     def __init__(self, nome: str, email: str, senha: str, idade: int):
         self.nome = nome
         self.email = email
-        self.__senha = senha                     # <- privado (name mangling)
+        self.__senha = senha
         self.idade = idade
-        self._saldo = POOCoin(0.0)               # protegido
-        self._jogos_adquiridos: Dict[str, Dict[str, object]] = {}   # privado lógico
+        self._saldo = POOCoin(0.0)
+        self._jogos_adquiridos: Dict[str, Dict[str, object]] = {}
         self.preferencias: List[str] = []
-        self._tickets: List[Dict[str, str]] = [] # privado lógico
-        self._mensagens: List[str] = []          # privado lógico
+        self._tickets: List[Dict[str, str]] = []
+        self._mensagens: List[str] = []
         self._preferencia_plataforma: Optional[str] = None
         self._achievements_desbloqueados: Dict[str, Set[str]] = {}
 
-    # ---- Saldo (só leitura)
+    # ---- Saldo
     @property
     def saldo(self) -> POOCoin:
-        return POOCoin(self._saldo.valor)  # cópia para evitar aliasing
+        return POOCoin(self._saldo.valor)
 
-    # ---- Plataforma preferida (setter validado)
+    # ---- Plataforma
     @property
     def preferencia_plataforma(self) -> Optional[str]:
         return self._preferencia_plataforma
@@ -174,14 +173,14 @@ class Usuario(ABC):
         else:
             print(f"Plataforma inválida. Use: {', '.join(sorted(self._PLAT_PERMITIDAS))}")
 
-    # ---- Mensagens (inbox)
+    # ---- Mensagens
     def adicionar_mensagem(self, msg: str) -> None:
         self._mensagens.append(msg)
 
     def listar_mensagens(self) -> List[str]:
         return list(self._mensagens)
 
-    # ---- Tickets (helpdesk)
+    # ---- Tickets
     def abrir_ticket(self, problema: str) -> None:
         self._tickets.append({'problema': problema, 'status': 'Aberto'})
 
@@ -209,7 +208,7 @@ class Usuario(ABC):
         else:
             _maybe_print("O valor deve ser positivo.", notify)
 
-    # ---- Biblioteca (encapsulada)
+    # ---- Biblioteca
     def possui_jogo(self, nome_jogo: str) -> bool:
         return nome_jogo in self._jogos_adquiridos
 
@@ -218,7 +217,7 @@ class Usuario(ABC):
 
     def get_registro_jogo(self, nome_jogo: str) -> Optional[Dict[str, object]]:
         reg = self._jogos_adquiridos.get(nome_jogo)
-        return dict(reg) if reg else None  # cópia defensiva
+        return dict(reg) if reg else None
 
     # ---- Compras
     def comprar_jogo(self, jogo: Jogo, notify: bool = True) -> None:
@@ -226,10 +225,7 @@ class Usuario(ABC):
             _maybe_print(f"Você já possui o jogo '{jogo.nome}'.", notify)
             return
         if self._preferencia_plataforma and self._preferencia_plataforma not in jogo.plataformas:
-            _maybe_print(
-                f"'{jogo.nome}' não é compatível com sua plataforma preferida ({self._preferencia_plataforma}).",
-                notify
-            )
+            _maybe_print(f"'{jogo.nome}' não é compatível com sua plataforma preferida.", notify)
             return
         if self._saldo < jogo.preco:
             _maybe_print(f"Saldo insuficiente para comprar '{jogo.nome}'.", notify)
@@ -252,7 +248,7 @@ class Usuario(ABC):
         self._saldo -= preco
         print(f"'{nome_item}' comprado com sucesso! Novo saldo: {self.saldo}")
 
-    # ---- Atualizações (patch)
+    # ---- Atualizações
     def atualizar_jogo(self, nome_jogo: str) -> None:
         registro = self._jogos_adquiridos.get(nome_jogo)
         if not registro:
@@ -263,22 +259,18 @@ class Usuario(ABC):
         if instalado == jogo.versao_atual:
             print(f"{nome_jogo} já está atualizado (v{instalado}).")
             return
-        registro["versao_instalada"] = jogo.versao_atual  # type: ignore
+        registro["versao_instalada"] = jogo.versao_atual
         print(f"{nome_jogo} atualizado de v{instalado} para v{jogo.versao_atual}.")
 
-    # ---- Achievements (encapsulados)
+    # ---- Achievements
     def registrar_achievements_desbloqueados(self, jogo: Jogo, novos: List[Achievement], notify: bool = True) -> None:
         if not novos:
             return
         s = self._achievements_desbloqueados.setdefault(jogo.nome, set())
-        adicionados = 0
         for ach in novos:
             if ach.codigo not in s:
                 s.add(ach.codigo)
-                adicionados += 1
                 _maybe_print(f"[Achievement] {self.nome} desbloqueou: {ach.titulo} - {ach.descricao}", notify)
-        if adicionados == 0 and notify:
-            _maybe_print("Nenhum novo achievement desbloqueado.", notify)
 
     def listar_achievements_usuario(self, jogo: Jogo) -> None:
         print(f"\nAchievements de {self.nome} em {jogo.nome}:")
@@ -301,24 +293,6 @@ class UsuarioInfantil(Usuario):
 
     def obter_tipo_conta(self) -> str:
         return "Infantil"
-
-    def comprar_jogo(self, jogo: Jogo, notify: bool = True) -> None:
-        if self.status_aprovacao != 'aprovado':
-            _maybe_print("Sua conta precisa ser aprovada por um responsável.", notify)
-            return
-        if not self.permissoes['pode_comprar_jogos']:
-            _maybe_print("Você não tem permissão para comprar jogos.", notify)
-            return
-        super().comprar_jogo(jogo, notify=notify)
-
-    def comprar_item(self, jogo: Jogo, nome_item: str) -> None:
-        if self.status_aprovacao != 'aprovado':
-            print("Sua conta precisa ser aprovada por um responsável.")
-            return
-        if not self.permissoes['pode_comprar_itens']:
-            print("Você não tem permissão para comprar itens.")
-            return
-        super().comprar_item(jogo, nome_item)
 
 
 class UsuarioAdulto(Usuario):
@@ -344,6 +318,73 @@ class Admin(Usuario):
 
     def obter_tipo_conta(self) -> str:
         return "Admin"
+
+
+# ==========================
+#   Factory Method
+# ==========================
+class UsuarioFactory(ABC):
+    @abstractmethod
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        pass
+
+
+class UsuarioAdultoFactory(UsuarioFactory):
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        return UsuarioAdulto(nome, email, senha, idade)
+
+
+class UsuarioInfantilFactory(UsuarioFactory):
+    def __init__(self, responsavel_email: str):
+        self.responsavel_email = responsavel_email
+
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        return UsuarioInfantil(nome, email, senha, idade, self.responsavel_email)
+
+
+# ==========================
+#   Builder
+# ==========================
+class UsuarioBuilder:
+    def __init__(self):
+        self.nome = None
+        self.email = None
+        self.senha = None
+        self.idade = None
+        self.tipo = "adulto"
+        self.saldo_inicial = 0
+
+    def com_nome(self, nome: str):
+        self.nome = nome
+        return self
+
+    def com_email(self, email: str):
+        self.email = email
+        return self
+
+    def com_senha(self, senha: str):
+        self.senha = senha
+        return self
+
+    def com_idade(self, idade: int):
+        self.idade = idade
+        return self
+
+    def como_admin(self):
+        self.tipo = "admin"
+        return self
+
+    def com_saldo_inicial(self, valor: float):
+        self.saldo_inicial = valor
+        return self
+
+    def construir(self):
+        if self.tipo == "admin":
+            usuario = Admin(self.nome, self.email, self.senha)
+        else:
+            usuario = UsuarioAdulto(self.nome, self.email, self.senha, self.idade)
+        usuario.adicionar_saldo(POOCoin(self.saldo_inicial), notify=False)
+        return usuario
 
 
 # ==========================
@@ -390,11 +431,22 @@ class Plataforma:
         self.usuarios: Dict[str, Usuario] = {}
         self.jogos: Dict[str, Jogo] = {}
         self.matchmaking = MatchmakingQueue(tamanho_partida=2)
-        # Admin padrão
-        self.usuarios["admin"] = Admin("lucas", "POO@ic.com", "admin123")
 
     def encontrar_usuario(self, nome_ou_email: str) -> Optional[Usuario]:
         for user in self.usuarios.values():
             if user.nome == nome_ou_email or user.email == nome_ou_email:
                 return user
         return None
+
+
+# ==========================
+#   Singleton
+# ==========================
+class PlataformaSingleton(Plataforma):
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            Plataforma.__init__(cls._instance)
+        return cls._instance
