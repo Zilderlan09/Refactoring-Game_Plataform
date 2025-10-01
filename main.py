@@ -1,7 +1,7 @@
-# main.py
 from game import (
-    Plataforma, POOCoin, JogoOnline, JogoOffline, Achievement,
-    UsuarioAdulto, UsuarioInfantil, Admin, Jogo
+    Plataforma, PlataformaSingleton, POOCoin, JogoOnline, JogoOffline, Achievement,
+    UsuarioAdulto, UsuarioInfantil, Admin, Jogo,
+    UsuarioAdultoFactory, UsuarioInfantilFactory, UsuarioBuilder
 )
 
 
@@ -190,7 +190,6 @@ def menu_matchmaking(plataforma: Plataforma, usuario):
 
 
 def menu_usuario(plataforma: Plataforma, usuario):
-    # Verifica aprovação no caso de infantil
     if isinstance(usuario, UsuarioInfantil) and usuario.status_aprovacao == 'pendente':
         print("\nSua conta está pendente de aprovação. Peça para seu responsável liberá-la.")
         return
@@ -354,7 +353,8 @@ def criar_usuario(plataforma: Plataforma):
         email_resp = input("Por ser menor de idade, digite o e-mail de um responsável já cadastrado: ").strip()
         responsavel = plataforma.encontrar_usuario(email_resp)
         if isinstance(responsavel, UsuarioAdulto):
-            novo_usuario = UsuarioInfantil(nome, email, senha, idade, email_resp)
+            fabrica = UsuarioInfantilFactory(email_resp)
+            novo_usuario = fabrica.criar_usuario(nome, email, senha, idade)
             plataforma.usuarios[nome] = novo_usuario
             responsavel.adicionar_mensagem(
                 f"Sistema: O usuário '{nome}' ({idade} anos) solicitou aprovação como seu dependente."
@@ -363,7 +363,8 @@ def criar_usuario(plataforma: Plataforma):
         else:
             print("\nE-mail do responsável não encontrado ou não é uma conta de adulto. Cadastro cancelado.")
     else:
-        novo_usuario = UsuarioAdulto(nome, email, senha, idade)
+        fabrica = UsuarioAdultoFactory()
+        novo_usuario = fabrica.criar_usuario(nome, email, senha, idade)
         plataforma.usuarios[nome] = novo_usuario
         print("\nConta criada com sucesso!\n")
 
@@ -403,8 +404,17 @@ def executar(plataforma: Plataforma):
 
 
 if __name__ == "__main__":
-    # ================= Pré-configuração (silenciosa) =================
-    plataforma_gaming = Plataforma()
+    # ================= Pré-configuração =================
+    plataforma_gaming = PlataformaSingleton()
+
+    # [Builder] para criar Admin
+    admin_builder = (UsuarioBuilder()
+                     .com_nome("lucas")
+                     .com_email("POO@ic.com")
+                     .com_senha("admin123")
+                     .como_admin()
+                     .com_saldo_inicial(500))
+    plataforma_gaming.usuarios["admin"] = admin_builder.construir()
 
     # Jogos com plataformas
     jogo1 = JogoOnline("Aventuras_em_POO", POOCoin(100.0), {"PC", "Console"})
@@ -420,7 +430,7 @@ if __name__ == "__main__":
     jogo1.registrar_achievement(Achievement("P100", "Primeiros Passos", "Marque ao menos 100 pontos.", 100))
     jogo1.registrar_achievement(Achievement("P1000", "Veterano", "Marque ao menos 1000 pontos.", 1000))
 
-    # Usuários
+    # Usuários (pré-configuração silenciosa)
     luu = UsuarioAdulto("luu", "luu@ic.com", "luu123", 30)
     rafael = UsuarioInfantil("rafael", "rafael@email.com", "rafael123", 12, "luu@ic.com")
     maria = UsuarioInfantil("maria", "maria@email.com", "maria123", 10, "luu@ic.com")
@@ -435,7 +445,7 @@ if __name__ == "__main__":
     rafael.permissoes['pode_comprar_itens'] = True
     rafael.permissoes['pode_comprar_jogos'] = False
 
-    # Mensagem para o responsável (via API)
+    # Mensagem para o responsável
     luu.adicionar_mensagem(
         f"Sistema: A usuária '{maria.nome}' ({maria.idade} anos) solicitou aprovação como sua dependente."
     )
