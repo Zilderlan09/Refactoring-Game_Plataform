@@ -54,8 +54,54 @@ class PatchNote:
 # ==========================
 #   Jogos
 # ==========================
+# --------------------- Visitor Pattern ---------------------
+
+class JogoVisitor(ABC):
+    @abstractmethod
+    def visitar_jogo(self, jogo: 'Jogo'):
+        pass
+
+    @abstractmethod
+    def visitar_jogo_online(self, jogo: 'JogoOnline'):
+        pass
+
+    @abstractmethod
+    def visitar_jogo_offline(self, jogo: 'JogoOffline'):
+        pass
+
+
+class JogoRankingVisitor(JogoVisitor):
+    def visitar_jogo(self, jogo: 'Jogo'):
+        jogo.mostrar_ranking()
+
+    def visitar_jogo_online(self, jogo: 'JogoOnline'):
+        jogo.mostrar_ranking()
+        print(f"\nAcessando fórum de {jogo.nome}:")
+        jogo.ver_forum()
+
+    def visitar_jogo_offline(self, jogo: 'JogoOffline'):
+        jogo.mostrar_ranking()
+
+# --------------------- Strategy Pattern ---------------------
+
+class CalculadorPontuacao(ABC):
+    @abstractmethod
+    def calcular(self, pontos_atual: int) -> int:
+        pass
+
+
+class CalculadorPontuacaoNormal(CalculadorPontuacao):
+    def calcular(self, pontos_atual: int) -> int:
+        return pontos_atual + 10  # Aumenta 10 pontos a cada novo jogo
+
+
+class CalculadorPontuacaoVIP(CalculadorPontuacao):
+    def calcular(self, pontos_atual: int) -> int:
+        return pontos_atual + 50  # Aumenta 50 pontos a cada novo jogo para jogadores VIP
+
+
 class Jogo:
-    def __init__(self, nome: str, preco: POOCoin, plataformas: Optional[Set[str]] = None):
+    def __init__(self, nome: str, preco: POOCoin, plataformas: Optional[Set[str]] = None, estrategia: Optional[CalculadorPontuacao] = None):
         self.nome = nome
         self.preco = preco
         self._loja: Dict[str, POOCoin] = {}
@@ -64,6 +110,16 @@ class Jogo:
         self.plataformas: Set[str] = set(plataformas or {"PC"})
         self.versao_atual: str = "1.0.0"
         self.patches: List[PatchNote] = []
+        self.estrategia_pontuacao = estrategia or CalculadorPontuacaoNormal()  # Strategy padrão
+    
+    # Modifica a estratégia de pontuação em tempo de execução
+    def set_estrategia_pontuacao(self, estrategia: CalculadorPontuacao):
+        self.estrategia_pontuacao = estrategia
+
+    def adicionar_pontuacao(self, nome_usuario: str, pontos: int, notify: bool = True) -> None:
+        pontos_novos = self.estrategia_pontuacao.calcular(pontos)
+        self.pontuacoes[nome_usuario] = self.pontuacoes.get(nome_usuario, 0) + pontos_novos
+        _maybe_print(f"Pontuação de {nome_usuario} em {self.nome} atualizada para {self.pontuacoes[nome_usuario]} pontos.", notify)
 
     # ---- Loja
     def adicionar_item_loja(self, item: str, preco: POOCoin) -> None:
@@ -76,13 +132,6 @@ class Jogo:
         return self._loja.get(item)
 
     # ---- Ranking
-    def adicionar_pontuacao(self, nome_usuario: str, pontos: int, notify: bool = True) -> None:
-        self.pontuacoes[nome_usuario] = self.pontuacoes.get(nome_usuario, 0) + int(pontos)
-        _maybe_print(
-            f"Pontuação de {nome_usuario} em {self.nome} atualizada para {self.pontuacoes[nome_usuario]} pontos.",
-            notify
-        )
-
     def mostrar_ranking(self) -> None:
         print(f"\n {self.nome} (v{self.versao_atual})")
         if not self.pontuacoes:
@@ -116,7 +165,8 @@ class Jogo:
 
 
 class JogoOffline(Jogo):
-    pass
+    def aceitar_visitor(self, visitor: JogoVisitor):
+        visitor.visitar_jogo_offline(self)
 
 
 class JogoOnline(Jogo):
@@ -135,6 +185,9 @@ class JogoOnline(Jogo):
         else:
             for post in self.forum:
                 print(post)
+
+    def aceitar_visitor(self, visitor: JogoVisitor):
+        visitor.visitar_jogo_online(self)
 
 
 # ==========================
@@ -318,7 +371,6 @@ class Admin(Usuario):
 
     def obter_tipo_conta(self) -> str:
         return "Admin"
-
 
 # ==========================
 #   Factory Method
