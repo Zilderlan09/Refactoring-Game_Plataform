@@ -1,9 +1,11 @@
 # 🎮 Gaming_Platform
+
 Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/admin), microtransações, ranking + achievements, fórum, patch/update, controle parental, suporte, matchmaking e compatibilidade cross-platform.
 
 ---
 
 ## 🧱 Arquitetura
+
 **`game.py`** — núcleo de domínio/POO:  
 - 🎮 **Jogos**: `Jogo`, `JogoOnline`, `JogoOffline`  
 - 👤 **Usuários**: `Usuario` (abstrata), `UsuarioAdulto`, `UsuarioInfantil`, `Admin`  
@@ -63,7 +65,19 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 
 ---
 
-### 🛠️ Qualidade de vida
+### 🧠 Padrões Comportamentais Adicionados
+
+- 🔹 **Visitor**:  
+  Permite adicionar novas operações a objetos sem alterar suas classes. No contexto da plataforma de jogos, o padrão Visitor foi utilizado para aplicar ações ou verificações nos objetos do tipo **Jogo** sem modificar suas classes.  
+  - **Exemplo**: A funcionalidade de aplicar um "desconto" nos jogos ou gerar relatórios de desempenho pode ser realizada com o Visitor, sem mexer diretamente no código das classes **Jogo**.
+
+- 🔹 **Strategy**:  
+  Define uma família de algoritmos, encapsula cada um deles e os torna intercambiáveis. O padrão Strategy foi utilizado para aplicar diferentes métodos de cálculo ou validação de pontos, ou até mesmo definir diferentes maneiras de interação do jogador com o jogo (como diferentes tipos de **ranking** ou **achievements**).  
+  - **Exemplo**: O método de **atualizar ranking** poderia ser alterado de forma dinâmica (por exemplo, utilizando **Strategy** para diferentes tipos de jogos com diferentes regras de pontuação).
+
+---
+
+### 🧹 Correções e melhorias
 - 🔇 `notify=False` para silenciar logs na pré-configuração.  
 - 🧹 Correções de indentação no `menu_usuario` (resolvido *IndentationError*).  
 
