@@ -72,7 +72,7 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 ### 🎭 **Comportamentais**
 | Padrão | Onde | Função |
 |--------|------|--------|
-| **Strategy** | `CalculadorPontuacao` + `Jogo` | Permite trocar a regra de cálculo de pontuação (normal/VIP). |
+| **Strategy** | `CalculadorPontuacao` + `Jogo` | Permite trocar a regra de cálculo de pontuação (normal/bônus). |
 | **Visitor** | `JogoVisitor`, `JogoRankingVisitor`, `aceitar_visitor()` | Executa ações em `JogoOnline`/`JogoOffline` sem alterar suas classes. |
 | **Chain of Responsibility** | `SuporteHandler`, `AtendimentoBasico/Avancado/Fallback` | Encadeia níveis de suporte para tickets (login, pagamento, geral). |
 
