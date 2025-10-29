@@ -10,7 +10,7 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 - 🎮 **Jogos**: `Jogo`, `JogoOnline`, `JogoOffline`  
 - 👤 **Usuários**: `Usuario` (abstrata), `UsuarioAdulto`, `UsuarioInfantil`, `Admin`  
 - ⚙️ **Sistemas**: `POOCoin`, `Achievement`, `PatchNote`, `MatchmakingQueue`, `Match`, `Plataforma`, `PlataformaSingleton`  
-- 🏗️ **Design Patterns**: `UsuarioFactory`, `UsuarioAdultoFactory`, `UsuarioInfantilFactory`, `UsuarioBuilder`
+- 🏗️ **Design Patterns**: `UsuarioFactory`, `UsuarioBuilder`, `PlataformaFacade`, `ForumAdapter`, `AchievementComposite`
 
 **`main.py`** — interface CLI e menus (admin/usuário).  
 
@@ -25,10 +25,10 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 | 3   | 🤝 Matchmaking (fila por jogo, partida) | ✅ |
 | 4   | 🛒 Microtransações (POOCoin, itens in-game) | ✅ |
 | 5   | 🏆 Ranking & Achievements | ✅ |
-| 6   | 💬 Fórum (jogos online) | ✅ |
+| 6   | 💬 Fórum (jogos online + adaptador externo) | ✅ |
 | 7   | 🔧 Patches/Updates (admin publica, usuário atualiza) | ✅ |
 | 8   | 👪 Controle Parental (aprovação + permissões) | ✅ |
-| 9   | 🆘 Suporte/Tickets (abrir/listar) | ✅ |
+| 9   | 🆘 Suporte/Tickets (Chain of Responsibility) | ✅ |
 | 10  | 🖥️ Cross-Platform (metadados + preferência do usuário) | ✅ |
 
 ---
@@ -39,58 +39,84 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 - **Usuario**
   - `__senha` com *name mangling* + método `verificar_senha()`  
   - Internos privados: `_jogos_adquiridos`, `_tickets`, `_mensagens`, `_achievements_desbloqueados`  
-  - API pública: `possui_jogo()`, `listar_jogos_nomes()`, `get_registro_jogo()`,  
-    `abrir_ticket()`, `listar_tickets()`, `adicionar_mensagem()`, `listar_mensagens()`  
-  - `saldo` somente leitura (cópia defensiva) 💳  
-  - `preferencia_plataforma` com setter validado + `definir_preferencia_plataforma()` 🖥️📱🎮  
+  - API pública: `possui_jogo()`, `listar_jogos_nomes()`, `abrir_ticket()`, `listar_tickets()`, `adicionar_mensagem()`, `listar_mensagens()`  
+  - `saldo` somente leitura 💳  
+  - `preferencia_plataforma` validada via setter 🖥️📱🎮  
 
 - **Jogo**
   - Loja privada `_loja`  
-  - API da loja: `adicionar_item_loja()`, `listar_itens_loja()` (cópia defensiva), `obter_preco_item()`  
+  - Métodos seguros: `adicionar_item_loja()`, `listar_itens_loja()`, `obter_preco_item()`  
 
 ---
 
 ### 🧩 Novos sistemas
-- 🏅 **Achievements**: cadastro por jogo + desbloqueio automático por pontuação  
+- 🏅 **Achievements**: cadastro e desbloqueio automáticos  
 - 🔄 **Patch Management**: `versao_atual`, `publicar_patch()`, `listar_patches()`, `atualizar_jogo()`  
-- 🤝 **Matchmaking**: `MatchmakingQueue` (fila por jogo) + `Match` (partida)  
-- 🖥️📱🎮 **Cross-Platform**: `Jogo.plataformas` + `Usuario.preferencia_plataforma` (filtra listagem e valida compra)  
+- 🤝 **Matchmaking**: `MatchmakingQueue` (fila) + `Match` (partida)  
+- 🖥️📱🎮 **Cross-Platform**: `Jogo.plataformas` + `Usuario.preferencia_plataforma`  
+- 🧾 **Suporte automatizado**: tickets processados via cadeia de responsabilidade  
 
 ---
 
-### 🏗️ Padrões Criacionais
-- 🔹 **Singleton** → `PlataformaSingleton`, garante uma única instância da plataforma.  
-- 🔹 **Factory Method** → `UsuarioAdultoFactory` e `UsuarioInfantilFactory`, responsáveis por criar usuários.  
-- 🔹 **Builder** → `UsuarioBuilder`, usado para criar Admin passo a passo (com saldo inicial e privilégios).  
+## 🏗️ Padrões de Projeto
+
+### 🧠 **Criacionais**
+| Padrão | Onde | Objetivo |
+|--------|------|-----------|
+| **Singleton** | `PlataformaSingleton` | Garante uma única instância da plataforma. |
+| **Factory Method** | `UsuarioFactory` (`Adulto/Infantil`) | Criação encapsulada de usuários com regras específicas. |
+| **Builder** | `UsuarioBuilder` | Montagem passo a passo de `Admin` com saldo e permissões. |
 
 ---
 
-### 🧠 Padrões Comportamentais Adicionados
+### 🎭 **Comportamentais**
+| Padrão | Onde | Função |
+|--------|------|--------|
+| **Strategy** | `CalculadorPontuacao` + `Jogo` | Permite trocar a regra de cálculo de pontuação (normal/VIP). |
+| **Visitor** | `JogoVisitor`, `JogoRankingVisitor`, `aceitar_visitor()` | Executa ações em `JogoOnline`/`JogoOffline` sem alterar suas classes. |
+| **Chain of Responsibility** | `SuporteHandler`, `AtendimentoBasico/Avancado/Fallback` | Encadeia níveis de suporte para tickets (login, pagamento, geral). |
 
-- 🔹 **Visitor**:  
-  Permite adicionar novas operações a objetos sem alterar suas classes. No contexto da plataforma de jogos, o padrão Visitor foi utilizado para aplicar ações ou verificações nos objetos do tipo **Jogo** sem modificar suas classes.  
-  - **Exemplo**: A funcionalidade de aplicar um "desconto" nos jogos ou gerar relatórios de desempenho pode ser realizada com o Visitor, sem mexer diretamente no código das classes **Jogo**.
-
-- 🔹 **Strategy**:  
-  Define uma família de algoritmos, encapsula cada um deles e os torna intercambiáveis. O padrão Strategy foi utilizado para aplicar diferentes métodos de cálculo ou validação de pontos, ou até mesmo definir diferentes maneiras de interação do jogador com o jogo (como diferentes tipos de **ranking** ou **achievements**).  
-  - **Exemplo**: O método de **atualizar ranking** poderia ser alterado de forma dinâmica (por exemplo, utilizando **Strategy** para diferentes tipos de jogos com diferentes regras de pontuação).
+**👉 Benefício:** comportamento flexível e expansível sem alterar código-base.  
 
 ---
 
-### 🧹 Correções e melhorias
-- 🔇 `notify=False` para silenciar logs na pré-configuração.  
-- 🧹 Correções de indentação no `menu_usuario` (resolvido *IndentationError*).  
+### 🧱 **Estruturais**
+| Padrão | Onde | Função |
+|--------|------|--------|
+| **Adapter** | `IForum`, `ForumAdapter`, `ExternalForumAPI` | Permite usar um fórum externo como se fosse interno. |
+| **Composite** | `AchievementComponent`, `AchievementLeaf`, `AchievementPack` | Permite tratar vários achievements como um grupo único. |
+| **Facade** | `PlataformaFacade` | Simplifica chamadas complexas (cadastro, compra, patch) com uma interface unificada. |
+
+**👉 Benefício:** organização, desacoplamento e reuso de estruturas.  
+
+---
+
+## 💡 Exemplos rápidos
+
+- **Strategy** → `jogo.set_estrategia_pontuacao(CalculadorPontuacaoVIP())` muda a regra de pontuação em tempo real.  
+- **Visitor** → `jogo.aceitar_visitor(JogoRankingVisitor())` mostra ranking + fórum (para jogos online).  
+- **Chain** → Ticket “senha” é resolvido por `AtendimentoBasico`; “instalação” vai para `AtendimentoAvancado`.  
+- **Adapter** → Fórum externo plugado via `ForumAdapter(ExternalForumAPI())`.  
+- **Composite** → `AchievementPack` agrupa vários achievements e registra todos de uma vez.  
+- **Facade** → `facade.cadastrar_usuario_adulto("João", "joao@mail.com", "123")` em uma única chamada.  
+
+---
+
+## 🧹 Melhorias gerais
+- `notify=False` para logs silenciosos na pré-configuração.  
+- Padronização de saídas e exibição de menus.  
+- Correção de indentação e mensagens no menu do usuário.  
 
 ---
 
 ## ▶️ Como rodar
 
 ### 📌 Pré-requisitos
-- Python **3.9+**  
+- Python **3.9+**
 
-### ⚡ Rodando o projeto
+### ⚡ Execução
 ```bash
-# Clonar
+# Clonar repositório
 git clone <seu-repo>.git
 cd Gaming_Platform
 
