@@ -1,465 +1,764 @@
-from game import (
-    Plataforma, PlataformaSingleton, POOCoin, JogoOnline, JogoOffline, Achievement,
-    UsuarioAdulto, UsuarioInfantil, Admin, Jogo,
-    UsuarioAdultoFactory, UsuarioInfantilFactory, UsuarioBuilder
-)
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Dict, List, Set, Optional, Iterable
+
+# =====================================
+# PADRÕES DE EXCEÇÃO 
+# =====================================
+
+class GamingPlatformError(Exception):
+    """Exceção base para erros da plataforma."""
+    pass
+
+class BusinessRuleError(GamingPlatformError):
+    """Violação de regra de negócio (saldo, permissões etc.)."""
+    pass
+
+class NotFoundError(GamingPlatformError):
+    """Entidade não encontrada (usuário, jogo, item)."""
+    pass
+
+class FileFormatError(GamingPlatformError):
+    """Erro de formato de dados externos (API, patch, fórum)."""
+    pass
 
 
-def menu_admin(plataforma: Plataforma, admin: Admin):
-    while True:
-        print("\n[ADMIN]")
-        print("1 - Gerenciar Jogos")
-        print("2 - Adicionar Pontuação a um Jogador")
-        print("3 - Listar Usuários")
-        print("4 - Publicar Patch em um Jogo")
-        print("5 - Cadastrar Achievements em um Jogo")
-        print("6 - Deslogar\n")
-        escolha = input("> ")
-
-        if escolha == '1':
-            gerenciar_jogos_admin(plataforma)
-        elif escolha == '2':
-            nome_usr = input("Adicionar pontos para qual usuário? ")
-            usuario = plataforma.encontrar_usuario(nome_usr)
-            if not usuario:
-                print("Usuário não encontrado.")
-                continue
-            nome_jogo = input(f"Em qual jogo adicionar pontos para {nome_usr}? ")
-            jogo = plataforma.jogos.get(nome_jogo)
-            if not jogo:
-                print("Jogo não encontrado.")
-                continue
-            if not usuario.possui_jogo(nome_jogo):
-                print(f"Erro: O usuário '{usuario.nome}' não possui o jogo '{nome_jogo}'.")
-                continue
+def safe_call(default_return=None, log=True):
+    """
+    Decorator para capturar exceções e continuar execução.
+    → Evita quebra do fluxo em chamadas críticas.
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
             try:
-                pontos = int(input("Quantos pontos? "))
-                jogo.adicionar_pontuacao(usuario.nome, pontos)
-                novos = jogo.verificar_achievements_para(usuario.nome, jogo.pontuacoes[usuario.nome])
-                usuario.registrar_achievements_desbloqueados(jogo, novos)
-            except ValueError:
-                print("Valor de pontos inválido.")
-        elif escolha == '3':
-            for u in plataforma.usuarios.values():
-                print(f"- {u.nome} ({u.obter_tipo_conta()})")
-        elif escolha == '4':
-            nome_jogo = input("Publicar patch para qual jogo? ")
-            jogo = plataforma.jogos.get(nome_jogo)
-            if not jogo:
-                print("Jogo não encontrado.")
-                continue
-            versao = input("Nova versão (ex: 1.1.0): ").strip()
-            notas = input("Notas do patch: ").strip()
-            jogo.publicar_patch(versao, notas)
-        elif escolha == '5':
-            nome_jogo = input("Cadastrar achievements em qual jogo? ")
-            jogo = plataforma.jogos.get(nome_jogo)
-            if not jogo:
-                print("Jogo não encontrado.")
-                continue
-            try:
-                qtd = int(input("Quantos achievements deseja adicionar? "))
-            except ValueError:
-                print("Número inválido.")
-                continue
-            for _ in range(qtd):
-                cod = input("Código (único): ").strip()
-                tit = input("Título: ").strip()
-                desc = input("Descrição: ").strip()
-                try:
-                    pmin = int(input("Pontos mínimos para desbloquear: "))
-                except ValueError:
-                    pmin = 0
-                jogo.registrar_achievement(Achievement(codigo=cod, titulo=tit, descricao=desc, pontos_minimos=pmin))
-            print("Achievements cadastrados.")
-        elif escolha == '6':
-            break
+                return func(*args, **kwargs)
+            except GamingPlatformError as e:
+                if log:
+                    print(f"[safe_call] {func.__name__}: {e}")
+                return default_return
+            except Exception as e:
+                if log:
+                    print(f"[safe_call:unexpected] {func.__name__}: {e}")
+                return default_return
+        return wrapper
+    return decorator
 
 
-def gerenciar_jogos_admin(plataforma: Plataforma):
-    while True:
-        print("\n    Gerenciamento de Jogos\n")
-        print("1 - Adicionar jogo")
-        print("2 - Adicionar item a um jogo")
-        print("3 - Listar patches de um jogo")
-        print("4 - Voltar")
-        escolha = input("> ")
-        if escolha == '1':
-            nome_jogo = input("Nome do jogo: ")
-            if nome_jogo in plataforma.jogos:
-                print("Jogo já existe.")
-                continue
-            try:
-                preco = float(input("Preço do jogo em POOCoins: "))
-                plataformas = input("Plataformas suportadas (ex: PC,Mobile,Console): ").split(",")
-                plataformas = {p.strip() for p in plataformas if p.strip()}
-            except ValueError:
-                print("Preço inválido.")
-                continue
-            tipo = input("\nJogo é (1) Online ou (2) Offline? ")
-            if tipo == '1':
-                plataforma.jogos[nome_jogo] = JogoOnline(nome_jogo, POOCoin(preco), plataformas)
-            elif tipo == '2':
-                plataforma.jogos[nome_jogo] = JogoOffline(nome_jogo, POOCoin(preco), plataformas)
-            else:
-                print("Tipo inválido. Jogo não criado.")
-                continue
-            print("\nJogo adicionado!")
-        elif escolha == '2':
-            nome_jogo = input("Adicionar item em qual jogo? ")
-            jogo = plataforma.jogos.get(nome_jogo)
-            if not jogo:
-                print("Jogo não encontrado.")
-                continue
-            item = input("Nome do item: ")
-            try:
-                preco = float(input("Preço em POOCoins: "))
-                jogo.adicionar_item_loja(item, POOCoin(preco))
-                print("Item adicionado à loja!")
-            except ValueError:
-                print("Preço inválido.")
-        elif escolha == '3':
-            nome_jogo = input("Listar patches de qual jogo? ")
-            jogo = plataforma.jogos.get(nome_jogo)
-            if not jogo:
-                print("Jogo não encontrado.")
-                continue
-            jogo.listar_patches()
-        elif escolha == '4':
-            break
+class TryContext:
+    """
+    Context manager para capturar exceções previstas
+    e manter o fluxo sem travar o programa.
+    """
+    def __init__(self, label: str = "ctx", suppress=(GamingPlatformError,)):
+        self.label = label
+        self.suppress = suppress
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc and issubclass(exc_type, self.suppress):
+            print(f"[TryContext:{self.label}] {exc}")
+            return True
+        return False
 
 
-def menu_dependentes(plataforma: Plataforma, usuario_adulto: UsuarioAdulto):
-    print("\n    Gerenciamento de Dependentes ")
-    pendentes = [u for u in plataforma.usuarios.values()
-                 if isinstance(u, UsuarioInfantil)
-                 and u.responsavel_email == usuario_adulto.email
-                 and u.status_aprovacao == 'pendente']
-    if pendentes:
-        print("Contas pendentes de aprovação:")
-        for i, dep in enumerate(pendentes, 1):
-            print(f"{i} - {dep.nome} (Idade: {dep.idade})")
+class SafeDict(dict):
+    """Dicionário seguro que não gera KeyError."""
+    def __getitem__(self, key):
         try:
-            escolha = int(input("Digite o número da conta para aprovar (ou 0 para cancelar): "))
-            if 0 < escolha <= len(pendentes):
-                dependente_aprovado = pendentes[escolha - 1]
-                dependente_aprovado.status_aprovacao = 'aprovado'
-                print(f"Conta de {dependente_aprovado.nome} aprovada!")
-                usuario_adulto.definir_permissoes(dependente_aprovado)
-        except ValueError:
-            print("Entrada inválida.")
-    else:
-        print("Nenhuma conta pendente de aprovação.")
+            return super().__getitem__(key)
+        except KeyError:
+            print(f"[SafeDict] Chave ausente: {key}")
+            return None
 
 
-def menu_suporte(usuario):
-    print("\n    Central de Suporte")
-    print("1 - Abrir um ticket de suporte")
-    print("2 - Ver meus tickets")
-    escolha = input("> ")
-    if escolha == '1':
-        problema = input("Descreva seu problema: ")
-        usuario.abrir_ticket(problema)
-        print("Ticket aberto com sucesso!")
-    elif escolha == '2':
-        tickets = usuario.listar_tickets()
-        if not tickets:
-            print("Você não tem tickets abertos.")
-        for i, ticket in enumerate(tickets, 1):
-            print(f"{i}. Problema: {ticket['problema']} | Status: {ticket['status']}")
+# ==========================
+#   Helpers
+# ==========================
+def _maybe_print(msg: str, notify: bool):
+    if notify:
+        print(msg)
+
+# ==========================
+#   Currency
+# ==========================
+class POOCoin:
+    def __init__(self, valor: float):
+        self.valor = round(float(valor), 2)
+
+    def __str__(self) -> str:
+        return f"P$ {self.valor:.2f}"
+
+    def __add__(self, other):
+        return POOCoin(self.valor + other.valor) if isinstance(other, POOCoin) else NotImplemented
+
+    def __sub__(self, other):
+        return POOCoin(self.valor - other.valor) if isinstance(other, POOCoin) else NotImplemented
+
+    def __lt__(self, other):
+        return self.valor < other.valor if isinstance(other, POOCoin) else NotImplemented
 
 
-def menu_matchmaking(plataforma: Plataforma, usuario):
-    print("\n[Matchmaking]")
-    print("1 - Entrar na fila")
-    print("2 - Tentar formar partida")
-    print("3 - Voltar")
-    esc = input("> ")
-    if esc == '1':
-        nome_jogo = input("Fila de qual jogo? ")
-        if nome_jogo not in plataforma.jogos:
-            print("Jogo não encontrado.")
+# ==========================
+#   Achievements (Simples)
+# ==========================
+@dataclass
+class Achievement:
+    codigo: str
+    titulo: str
+    descricao: str
+    pontos_minimos: int = 0
+
+
+# ==========================
+#   Composite - Estrutural
+# ==========================
+class AchievementComponent(ABC):
+    @abstractmethod
+    def listar(self) -> Iterable[Achievement]:
+        ...
+
+
+class AchievementLeaf(AchievementComponent):
+    def __init__(self, ach: Achievement):
+        self.ach = ach
+
+    def listar(self) -> Iterable[Achievement]:
+        yield self.ach
+
+
+class AchievementPack(AchievementComponent):
+    """Composição de achievements (Composite Pattern)."""
+    def __init__(self, titulo: str):
+        self.titulo = titulo
+        self._filhos: List[AchievementComponent] = []
+
+    def adicionar(self, comp: AchievementComponent):
+        self._filhos.append(comp)
+
+    def listar(self) -> Iterable[Achievement]:
+        for c in self._filhos:
+            yield from c.listar()
+# ==========================
+#   Patch / Update
+# ==========================
+@dataclass
+class PatchNote:
+    versao: str
+    notas: str
+
+
+# ==========================
+#   Strategy (Comportamental)
+# ==========================
+class CalculadorPontuacao(ABC):
+    @abstractmethod
+    def calcular(self, pontos_informados: int) -> int:
+        ...
+
+
+class CalculadorPontuacaoNormal(CalculadorPontuacao):
+    def calcular(self, pontos_informados: int) -> int:
+        return int(pontos_informados)
+
+
+class CalculadorPontuacaoBonus(CalculadorPontuacao):
+    def calcular(self, pontos_informados: int) -> int:
+        base = int(pontos_informados)
+        return int(round(base * 1.10))
+
+
+# ==========================
+#   Adapter (Estrutural) - Fórum
+# ==========================
+class IForum(ABC):
+    @abstractmethod
+    def postar(self, autor: str, mensagem: str) -> None: ...
+    @abstractmethod
+    def listar(self) -> List[str]: ...
+
+
+class InternalForum(IForum):
+    def __init__(self):
+        self._posts: List[str] = []
+
+    def postar(self, autor: str, mensagem: str) -> None:
+        self._posts.append(f"[{autor}]: {mensagem}")
+
+    def listar(self) -> List[str]:
+        return list(self._posts)
+
+
+class ExternalForumAPI:
+    """Simula uma API externa com formato diferente."""
+    def __init__(self):
+        self.messages: List[Dict[str, str]] = []
+
+    def push_message(self, payload: Dict[str, str]):
+        if not isinstance(payload, dict) or "author" not in payload or "text" not in payload:
+            raise FileFormatError("Payload inválido recebido pela API externa.")
+        self.messages.append(payload)
+
+    def dump(self) -> List[Dict[str, str]]:
+        return list(self.messages)
+
+
+class ForumAdapter(IForum):
+    """Adapter que conecta a API externa à interface interna."""
+    def __init__(self, external: ExternalForumAPI):
+        self.external = external
+
+    @safe_call(log=True)
+    def postar(self, autor: str, mensagem: str) -> None:
+        self.external.push_message({"author": autor, "text": mensagem})
+
+    @safe_call(default_return=[], log=True)
+    def listar(self) -> List[str]:
+        return [f"[{m['author']}]: {m['text']}" for m in self.external.dump()]
+
+
+# ==========================
+#   Visitor (Comportamental)
+# ==========================
+class JogoVisitor(ABC):
+    @abstractmethod
+    def visitar_jogo(self, jogo: 'Jogo'): ...
+    @abstractmethod
+    def visitar_jogo_online(self, jogo: 'JogoOnline'): ...
+    @abstractmethod
+    def visitar_jogo_offline(self, jogo: 'JogoOffline'): ...
+
+
+class JogoRankingVisitor(JogoVisitor):
+    """Visitor que aplica ações sem alterar as classes de jogo."""
+    def visitar_jogo(self, jogo: 'Jogo'):
+        jogo.mostrar_ranking()
+
+    def visitar_jogo_online(self, jogo: 'JogoOnline'):
+        jogo.mostrar_ranking()
+        print(f"\n[FÓRUM] {jogo.nome}")
+        jogo.ver_forum()
+
+    def visitar_jogo_offline(self, jogo: 'JogoOffline'):
+        jogo.mostrar_ranking()
+# ==========================
+#   Jogos
+# ==========================
+class Jogo:
+    def __init__(self, nome: str, preco: POOCoin, plataformas: Optional[Set[str]] = None,
+                 estrategia: Optional[CalculadorPontuacao] = None):
+        self.nome = nome
+        self.preco = preco
+        self._loja: Dict[str, POOCoin] = {}
+        self.pontuacoes: Dict[str, int] = {}
+        self.achievements: Dict[str, Achievement] = {}
+        self.plataformas: Set[str] = set(plataformas or {"PC"})
+        self.versao_atual: str = "1.0.0"
+        self.patches: List[PatchNote] = []
+        self._estrategia_pontos: CalculadorPontuacao = estrategia or CalculadorPontuacaoNormal()
+
+    # Strategy – define qual cálculo de pontuação o jogo usará
+    def set_estrategia_pontuacao(self, estrategia: CalculadorPontuacao):
+        self._estrategia_pontos = estrategia
+
+    # Loja (encapsulada)
+    def adicionar_item_loja(self, item: str, preco: POOCoin) -> None:
+        self._loja[item] = preco
+
+    def listar_itens_loja(self) -> Dict[str, POOCoin]:
+        return dict(self._loja)
+
+    def obter_preco_item(self, item: str) -> Optional[POOCoin]:
+        return self._loja.get(item)
+
+    # Ranking
+    def adicionar_pontuacao(self, nome_usuario: str, pontos: int, notify: bool = True) -> None:
+        pontos_calc = self._estrategia_pontos.calcular(pontos)
+        self.pontuacoes[nome_usuario] = self.pontuacoes.get(nome_usuario, 0) + pontos_calc
+        _maybe_print(
+            f"Pontuação de {nome_usuario} em {self.nome} atualizada para {self.pontuacoes[nome_usuario]} pontos.",
+            notify
+        )
+
+    def mostrar_ranking(self) -> None:
+        print(f"\n {self.nome} (v{self.versao_atual})")
+        if not self.pontuacoes:
+            print("  Ranking: Ninguém marcou pontos neste jogo ainda.")
             return
-        if not usuario.possui_jogo(nome_jogo):
-            print("Você precisa possuir o jogo para entrar na fila.")
+        ranking_ordenado = sorted(self.pontuacoes.items(), key=lambda item: item[1], reverse=True)
+        print("  Ranking:")
+        for i, (nome, pontos) in enumerate(ranking_ordenado, 1):
+            print(f"    {i}. {nome} - {pontos} pontos")
+
+    # Achievements (simples)
+    def registrar_achievement(self, ach: Achievement) -> None:
+        self.achievements[ach.codigo] = ach
+
+    # Achievements (Composite opcional)
+    def registrar_achievement_component(self, comp: AchievementComponent) -> None:
+        for ach in comp.listar():
+            self.registrar_achievement(ach)
+
+    def verificar_achievements_para(self, nome_usuario: str, pontos_atuais: int) -> List[Achievement]:
+        """Retorna os achievements desbloqueados com base na pontuação atual"""
+        return [ach for ach in self.achievements.values() if pontos_atuais >= ach.pontos_minimos]
+
+    # Patches
+    def publicar_patch(self, versao: str, notas: str) -> None:
+        self.versao_atual = versao
+        self.patches.append(PatchNote(versao=versao, notas=notas))
+        print(f"Patch {versao} publicado para {self.nome}.")
+
+    def listar_patches(self) -> None:
+        if not self.patches:
+            print("Sem patches publicados.")
             return
-        plataforma.matchmaking.entrar_fila(nome_jogo, usuario.nome)
-    elif esc == '2':
-        nome_jogo = input("Formar partida para qual jogo? ")
-        plataforma.matchmaking.tentar_formar_partida(nome_jogo)
+        print(f"Patches de {self.nome}:")
+        for p in self.patches:
+            print(f"- v{p.versao}: {p.notas}")
+
+    # Visitor (default)
+    def aceitar_visitor(self, visitor: JogoVisitor):
+        visitor.visitar_jogo(self)
 
 
-def menu_usuario(plataforma: Plataforma, usuario):
-    if isinstance(usuario, UsuarioInfantil) and usuario.status_aprovacao == 'pendente':
-        print("\nSua conta está pendente de aprovação. Peça para seu responsável liberá-la.")
-        return
-
-    while True:
-        print(f"\n    Menu: {usuario.nome} | Saldo: {usuario.saldo} | Plataforma: {usuario.preferencia_plataforma or '—'}\n")
-        if hasattr(usuario, "dependentes"):
-            print("0 - Gerenciar Dependentes")
-        print("1 - Loja de Jogos")
-        print("2 - Comprar Item")
-        print("3 - Adicionar Saldo")
-        print("4 - Ver Catálogo de Jogos e Rankings")
-        print("5 - Gerenciar Preferências")
-        print("6 - Acessar Fórum (Jogos Online)")
-        print("7 - Suporte ao Usuário")
-        print("8 - Ver Minhas Mensagens")
-        print("9 - Definir Plataforma Preferida (PC/Mobile/Console)")
-        print("10 - Matchmaking")
-        print("11 - Atualizações (Patch) dos meus jogos")
-        print("12 - Achievements dos meus jogos")
-        print("13 - Deslogar")
-        escolha = input("> ")
-
-        if escolha == '1':
-            print("\n    Loja de Jogos Disponíveis")
-            jogos_a_venda = {}
-            for nome, jogo in plataforma.jogos.items():
-                if not usuario.possui_jogo(nome):
-                    if usuario.preferencia_plataforma and usuario.preferencia_plataforma not in jogo.plataformas:
-                        continue
-                    jogos_a_venda[nome] = jogo
-            if not jogos_a_venda:
-                print("Não há jogos compatíveis disponíveis ou você já possui todos.")
-            else:
-                for nome, jogo in jogos_a_venda.items():
-                    print(f"- {nome} | Preço: {jogo.preco} | Plataformas: {', '.join(sorted(jogo.plataformas))} | v{jogo.versao_atual}")
-                jogo_a_comprar = input("Digite o nome do jogo que deseja comprar (ou enter para voltar): ").strip()
-                if jogo_a_comprar in jogos_a_venda:
-                    usuario.comprar_jogo(jogos_a_venda[jogo_a_comprar])
-                elif jogo_a_comprar:
-                    print("Jogo não encontrado na loja.")
-
-        elif escolha == '2':
-            print("\n    Sua Biblioteca de Jogos")
-            nomes = usuario.listar_jogos_nomes()
-            if not nomes:
-                print("Você ainda não possui jogos.")
-            else:
-                for nome_jogo in nomes:
-                    print(f"- {nome_jogo}")
-                nome_jogo = input("Comprar item de qual jogo? ").strip()
-                if usuario.possui_jogo(nome_jogo):
-                    jogo = plataforma.jogos.get(nome_jogo)
-                    itens = jogo.listar_itens_loja()
-                    if not itens:
-                        print("Este jogo não possui itens à venda.")
-                    else:
-                        print("Itens disponíveis:")
-                        for item, preco in itens.items():
-                            print(f"- {item}: {preco}")
-                        item = input("Qual item? ").strip()
-                        usuario.comprar_item(jogo, item)
-                else:
-                    print("Você não possui este jogo.")
-
-        elif escolha == '3':
-            try:
-                valor = float(input("Digite o valor em POOCoins para adicionar: "))
-                usuario.adicionar_saldo(POOCoin(valor))
-            except ValueError:
-                print("Valor inválido.")
-
-        elif escolha == '4':
-            for jogo in plataforma.jogos.values():
-                jogo.mostrar_ranking()
-
-        elif escolha == '5':
-            prefs = input("Digite suas preferências, separadas por vírgula (ex: RPG, Aventura): ")
-            usuario.atualizar_preferencias(prefs)
-
-        elif escolha == '6':
-            nome_jogo = input("Acessar fórum de qual jogo? ").strip()
-            jogo = plataforma.jogos.get(nome_jogo)
-            if isinstance(jogo, JogoOnline):
-                if usuario.possui_jogo(jogo.nome):
-                    jogo.ver_forum()
-                    postar = input("Deseja postar uma mensagem? (s/n) ").lower()
-                    if postar == 's':
-                        msg = input("Sua mensagem: ")
-                        jogo.postar_no_forum(usuario.nome, msg)
-                else:
-                    print("Você precisa possuir este jogo para acessar o fórum.")
-            else:
-                print("Este jogo não é online ou não existe.")
-
-        elif escolha == '7':
-            menu_suporte(usuario)
-
-        elif escolha == '8':
-            print("\n    Caixa de Entrada\n")
-            mensagens = usuario.listar_mensagens()
-            if not mensagens:
-                print("Nenhuma mensagem.")
-            for msg in mensagens:
-                print(f"- {msg}")
-
-        elif escolha == '9':
-            plat = input("Informe sua plataforma preferida (PC/Mobile/Console) ou deixe em branco para limpar: ").strip()
-            usuario.definir_preferencia_plataforma(plat if plat else None)
-
-        elif escolha == '10':
-            menu_matchmaking(plataforma, usuario)
-
-        elif escolha == '11':
-            nomes = usuario.listar_jogos_nomes()
-            if not nomes:
-                print("Você não possui jogos.")
-            else:
-                for nome_jogo in nomes:
-                    reg = usuario.get_registro_jogo(nome_jogo)
-                    jogo = reg["obj"]
-                    inst = reg["versao_instalada"]
-                    print(f"- {nome_jogo}: instalado v{inst} | atual v{jogo.versao_atual}")
-                alvo = input("Atualizar qual jogo? (enter para cancelar) ").strip()
-                if alvo:
-                    usuario.atualizar_jogo(alvo)
-
-        elif escolha == '12':
-            nomes = usuario.listar_jogos_nomes()
-            if not nomes:
-                print("Você não possui jogos.")
-            else:
-                for nome_jogo in nomes:
-                    jogo = plataforma.jogos.get(nome_jogo)
-                    usuario.listar_achievements_usuario(jogo)
-
-        elif escolha == '0' and hasattr(usuario, "dependentes"):
-            menu_dependentes(plataforma, usuario)  # type: ignore
-
-        elif escolha == '13':
-            break
+class JogoOffline(Jogo):
+    def aceitar_visitor(self, visitor: JogoVisitor):
+        visitor.visitar_jogo_offline(self)
 
 
-def criar_usuario(plataforma: Plataforma):
-    nome = input("Digite o nome do novo usuário: ").strip()
-    if plataforma.encontrar_usuario(nome):
-        print("Nome de usuário já existe!")
-        return
-    email = input("Digite seu e-mail: ").strip()
-    if plataforma.encontrar_usuario(email):
-        print("E-mail já cadastrado!")
-        return
-    try:
-        idade = int(input("Digite sua idade: "))
-    except ValueError:
-        print("Idade inválida.")
-        return
-    senha = input("Digite sua senha: ").strip()
+class JogoOnline(Jogo):
+    def __init__(self, nome: str, preco: POOCoin, plataformas: Optional[Set[str]] = None, forum: Optional[IForum] = None):
+        super().__init__(nome, preco, plataformas)
+        # Por padrão, usa fórum interno; pode receber um Adapter (IForum)
+        self._forum: IForum = forum or InternalForum()
 
-    if idade < 18:
-        email_resp = input("Por ser menor de idade, digite o e-mail de um responsável já cadastrado: ").strip()
-        responsavel = plataforma.encontrar_usuario(email_resp)
-        if isinstance(responsavel, UsuarioAdulto):
-            fabrica = UsuarioInfantilFactory(email_resp)
-            novo_usuario = fabrica.criar_usuario(nome, email, senha, idade)
-            plataforma.usuarios[nome] = novo_usuario
-            responsavel.adicionar_mensagem(
-                f"Sistema: O usuário '{nome}' ({idade} anos) solicitou aprovação como seu dependente."
-            )
-            print("\nConta criada! Peça ao seu responsável para checar as mensagens e aprovar seu cadastro.")
+    # Mantém API original
+    def postar_no_forum(self, nome_usuario: str, mensagem: str, notify: bool = True) -> None:
+        self._forum.postar(nome_usuario, mensagem)
+        _maybe_print("Mensagem postada no fórum!", notify)
+
+    def ver_forum(self) -> None:
+        posts = self._forum.listar()
+        if not posts:
+            print("O fórum está vazio.")
         else:
-            print("\nE-mail do responsável não encontrado ou não é uma conta de adulto. Cadastro cancelado.")
-    else:
-        fabrica = UsuarioAdultoFactory()
-        novo_usuario = fabrica.criar_usuario(nome, email, senha, idade)
-        plataforma.usuarios[nome] = novo_usuario
-        print("\nConta criada com sucesso!\n")
+            for p in posts:
+                print(p)
+
+    # 🔧 Correção — herda o método de verificação de achievements da superclasse
+    def verificar_achievements_para(self, nome_usuario: str, pontos_atuais: int) -> List[Achievement]:
+        return super().verificar_achievements_para(nome_usuario, pontos_atuais)
+
+    def aceitar_visitor(self, visitor: JogoVisitor):
+        visitor.visitar_jogo_online(self)
+
+# ==========================
+#   Chain of Responsibility - Suporte
+# ==========================
+class SuporteHandler(ABC):
+    def __init__(self, proximo: Optional['SuporteHandler'] = None):
+        self._proximo = proximo
+
+    @safe_call(default_return=None)
+    def handle(self, ticket: Dict[str, str]):
+        if not self._processa(ticket) and self._proximo:
+            self._proximo.handle(ticket)
+
+    @abstractmethod
+    def _processa(self, ticket: Dict[str, str]) -> bool:
+        ...
 
 
-def login(plataforma: Plataforma):
-    nome_usuario = input("Digite seu nome de usuário ou e-mail: ").strip()
-    senha = input("Digite sua senha: ").strip()
-    usuario = plataforma.encontrar_usuario(nome_usuario)
+class AtendimentoBasico(SuporteHandler):
+    def _processa(self, ticket: Dict[str, str]) -> bool:
+        if ticket.get('categoria') in ('login', 'cadastro', 'senha'):
+            print(f"[Suporte Básico] Resolvido: {ticket['problema']}")
+            ticket['status'] = 'Resolvido (Básico)'
+            return True
+        return False
 
-    if usuario and usuario.verificar_senha(senha):
-        print(f"\nLogin bem-sucedido! Bem-vindo, {usuario.nome}!\n")
-        if isinstance(usuario, Admin):
-            menu_admin(plataforma, usuario)
+
+class AtendimentoAvancado(SuporteHandler):
+    def _processa(self, ticket: Dict[str, str]) -> bool:
+        if ticket.get('categoria') in ('pagamento', 'instalacao'):
+            print(f"[Suporte Avançado] Resolvido: {ticket['problema']}")
+            ticket['status'] = 'Resolvido (Avançado)'
+            return True
+        return False
+
+
+class AtendimentoFallback(SuporteHandler):
+    def _processa(self, ticket: Dict[str, str]) -> bool:
+        print(f"[Suporte Nível 3] Em análise: {ticket['problema']}")
+        ticket['status'] = 'Em análise'
+        return True
+
+
+# ==========================
+#   Usuários
+# ==========================
+class Usuario(ABC):
+    _PLAT_PERMITIDAS = {"PC", "Mobile", "Console"}
+
+    def __init__(self, nome: str, email: str, senha: str, idade: int):
+        self.nome = nome
+        self.email = email
+        self.__senha = senha
+        self.idade = idade
+        self._saldo = POOCoin(0.0)
+        self._jogos_adquiridos: Dict[str, Dict[str, object]] = SafeDict()
+        self.preferencias: List[str] = []
+        self._tickets: List[Dict[str, str]] = []
+        self._mensagens: List[str] = []
+        self._preferencia_plataforma: Optional[str] = None
+        self._achievements_desbloqueados: Dict[str, Set[str]] = {}
+
+    # Saldo
+    @property
+    def saldo(self) -> POOCoin:
+        return POOCoin(self._saldo.valor)
+
+    # Plataforma preferida
+    @property
+    def preferencia_plataforma(self) -> Optional[str]:
+        return self._preferencia_plataforma
+
+    @preferencia_plataforma.setter
+    def preferencia_plataforma(self, plataforma: Optional[str]):
+        if plataforma is None or plataforma in self._PLAT_PERMITIDAS:
+            self._preferencia_plataforma = plataforma
         else:
-            menu_usuario(plataforma, usuario)
-    else:
-        print("\nUsuário ou senha inválidos.\n")
+            raise BusinessRuleError(f"Plataforma inválida. Use: {', '.join(sorted(self._PLAT_PERMITIDAS))}")
+
+    # Mensagens
+    def adicionar_mensagem(self, msg: str) -> None:
+        self._mensagens.append(msg)
+
+    def listar_mensagens(self) -> List[str]:
+        return list(self._mensagens)
+
+    # Tickets
+    def abrir_ticket(self, problema: str, categoria: str = "geral") -> None:
+        self._tickets.append({'problema': problema, 'status': 'Aberto', 'categoria': categoria})
+
+    def listar_tickets(self) -> List[Dict[str, str]]:
+        return [dict(t) for t in self._tickets]
+
+    # Segurança
+    def verificar_senha(self, senha: str) -> bool:
+        return self.__senha == senha
+
+    # Preferências
+    def atualizar_preferencias(self, novas_preferencias_str: str) -> None:
+        self.preferencias = [p.strip() for p in novas_preferencias_str.split(',') if p.strip()]
+        print(f"Preferências de {self.nome} atualizadas para: {self.preferencias}")
+
+    def definir_preferencia_plataforma(self, plataforma: Optional[str]) -> None:
+        try:
+            self.preferencia_plataforma = plataforma
+            print(f"Plataforma preferida de {self.nome}: {self._preferencia_plataforma or 'Sem preferência'}")
+        except BusinessRuleError as e:
+            print(f"[Erro de plataforma] {e}")
+
+    # Carteira
+    @safe_call(log=True)
+    def adicionar_saldo(self, valor_adicionar: POOCoin, notify: bool = True) -> None:
+        if valor_adicionar.valor <= 0:
+            raise BusinessRuleError("O valor deve ser positivo.")
+        self._saldo += valor_adicionar
+        _maybe_print("Saldo adicionado!", notify)
+
+    # Biblioteca
+    def possui_jogo(self, nome_jogo: str) -> bool:
+        return nome_jogo in self._jogos_adquiridos
+
+    def listar_jogos_nomes(self) -> List[str]:
+        return list(self._jogos_adquiridos.keys())
+
+    def get_registro_jogo(self, nome_jogo: str) -> Optional[Dict[str, object]]:
+        return self._jogos_adquiridos.get(nome_jogo)
+
+    # Compras
+    @safe_call(log=True)
+    def comprar_jogo(self, jogo: Jogo, notify: bool = True) -> None:
+        if self.possui_jogo(jogo.nome):
+            raise BusinessRuleError(f"Você já possui o jogo '{jogo.nome}'.")
+        if self._preferencia_plataforma and self._preferencia_plataforma not in jogo.plataformas:
+            raise BusinessRuleError(f"'{jogo.nome}' não é compatível com sua plataforma preferida.")
+        if self._saldo < jogo.preco:
+            raise BusinessRuleError(f"Saldo insuficiente para comprar '{jogo.nome}'.")
+        self._saldo -= jogo.preco
+        self._jogos_adquiridos[jogo.nome] = {"obj": jogo, "versao_instalada": jogo.versao_atual}
+        _maybe_print(f"Jogo '{jogo.nome}' comprado com sucesso! Saldo atual: {self.saldo}", notify)
+
+    @safe_call(log=True)
+    def comprar_item(self, jogo: Jogo, nome_item: str) -> None:
+        if not self.possui_jogo(jogo.nome):
+            raise NotFoundError(f"Você precisa adquirir o jogo '{jogo.nome}' para comprar itens nele.")
+        preco = jogo.obter_preco_item(nome_item)
+        if preco is None:
+            raise NotFoundError(f"Item '{nome_item}' não encontrado.")
+        if self._saldo < preco:
+            raise BusinessRuleError("Saldo insuficiente.")
+        self._saldo -= preco
+        print(f"'{nome_item}' comprado com sucesso! Novo saldo: {self.saldo}")
+    # Atualizações (patch)
+    @safe_call(default_return=None, log=True)
+    def atualizar_jogo(self, nome_jogo: str) -> None:
+        registro = self._jogos_adquiridos.get(nome_jogo)
+        if not registro:
+            raise NotFoundError("Você não possui este jogo.")
+        jogo: Jogo = registro["obj"]  # type: ignore
+        instalado = registro["versao_instalada"]  # type: ignore
+        if instalado == jogo.versao_atual:
+            print(f"{nome_jogo} já está atualizado (v{instalado}).")
+            return
+        registro["versao_instalada"] = jogo.versao_atual
+        print(f"{nome_jogo} atualizado de v{instalado} para v{jogo.versao_atual}.")
+
+    # Achievements (encapsulados)
+    @safe_call(default_return=None)
+    def registrar_achievements_desbloqueados(self, jogo: Jogo, novos: List[Achievement], notify: bool = True) -> None:
+        if not novos:
+            return
+        s = self._achievements_desbloqueados.setdefault(jogo.nome, set())
+        adicionados = 0
+        for ach in novos:
+            if ach.codigo not in s:
+                s.add(ach.codigo)
+                adicionados += 1
+                _maybe_print(f"[Achievement] {self.nome} desbloqueou: {ach.titulo} - {ach.descricao}", notify)
+        if adicionados == 0 and notify:
+            _maybe_print("Nenhum novo achievement desbloqueado.", notify)
+
+    @safe_call(default_return=None)
+    def listar_achievements_usuario(self, jogo: Jogo) -> None:
+        print(f"\nAchievements de {self.nome} em {jogo.nome}:")
+        todos = jogo.achievements
+        desbloq = self._achievements_desbloqueados.get(jogo.nome, set())
+        if not todos:
+            print("  Jogo não possui achievements cadastrados.")
+            return
+        for cod, ach in todos.items():
+            status = "✅" if cod in desbloq else "—"
+            print(f"  [{status}] {ach.titulo} (min {ach.pontos_minimos}) - {ach.descricao}")
 
 
-def executar(plataforma: Plataforma):
-    while True:
-        print("\n    MENU PRINCIPAL\n")
-        print("1 - Login")
-        print("2 - Criar nova conta")
-        print("3 - Sair")
-        escolha = input("\nEscolha uma opção: ")
+class UsuarioInfantil(Usuario):
+    def __init__(self, nome: str, email: str, senha: str, idade: int, responsavel_email: str):
+        super().__init__(nome, email, senha, idade)
+        self.responsavel_email = responsavel_email
+        self.status_aprovacao = 'pendente'
+        self.permissoes = {'pode_comprar_itens': False, 'pode_comprar_jogos': False}
 
-        if escolha == "1":
-            login(plataforma)
-        elif escolha == "2":
-            criar_usuario(plataforma)
-        elif escolha == "3":
-            print("Obrigado por jogar! Saindo...")
-            break
+    def obter_tipo_conta(self) -> str:
+        return "Infantil"
+
+
+class UsuarioAdulto(Usuario):
+    def __init__(self, nome: str, email: str, senha: str, idade: int):
+        super().__init__(nome, email, senha, idade)
+        self.dependentes: List[UsuarioInfantil] = []
+
+    def obter_tipo_conta(self) -> str:
+        return "Adulto"
+
+    @safe_call(default_return=None, log=True)
+    def definir_permissoes(self, dependente: UsuarioInfantil) -> None:
+        print(f"\nConfigurando permissões para '{dependente.nome}':")
+        perm_itens = input("Permitir que este usuário compre ITENS nos jogos? (s/n): ").lower()
+        dependente.permissoes['pode_comprar_itens'] = (perm_itens == 's')
+        perm_jogos = input("Permitir que este usuário compre JOGOS da loja? (s/n): ").lower()
+        dependente.permissoes['pode_comprar_jogos'] = (perm_jogos == 's')
+        print("Permissões salvas.")
+
+
+class Admin(Usuario):
+    def __init__(self, nome: str, email: str, senha: str):
+        super().__init__(nome, email, senha, 23)
+
+    def obter_tipo_conta(self) -> str:
+        return "Admin"
+
+
+# ==========================
+#   Factory Method (Criacional)
+# ==========================
+class UsuarioFactory(ABC):
+    @abstractmethod
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        ...
+
+
+class UsuarioAdultoFactory(UsuarioFactory):
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        return UsuarioAdulto(nome, email, senha, idade)
+
+
+class UsuarioInfantilFactory(UsuarioFactory):
+    def __init__(self, responsavel_email: str):
+        self.responsavel_email = responsavel_email
+
+    def criar_usuario(self, nome: str, email: str, senha: str, idade: int):
+        return UsuarioInfantil(nome, email, senha, idade, self.responsavel_email)
+
+
+# ==========================
+#   Builder (Criacional)
+# ==========================
+class UsuarioBuilder:
+    def __init__(self):
+        self.nome = None
+        self.email = None
+        self.senha = None
+        self.idade = None
+        self.tipo = "adulto"
+        self.saldo_inicial = 0
+
+    def com_nome(self, nome: str):
+        self.nome = nome
+        return self
+
+    def com_email(self, email: str):
+        self.email = email
+        return self
+
+    def com_senha(self, senha: str):
+        self.senha = senha
+        return self
+
+    def com_idade(self, idade: int):
+        self.idade = idade
+        return self
+
+    def como_admin(self):
+        self.tipo = "admin"
+        return self
+
+    def com_saldo_inicial(self, valor: float):
+        self.saldo_inicial = valor
+        return self
+
+    @safe_call()
+    def construir(self):
+        if self.tipo == "admin":
+            usuario = Admin(self.nome, self.email, self.senha)
         else:
-            print("Opção inválida!")
+            usuario = UsuarioAdulto(self.nome, self.email, self.senha, self.idade)
+        usuario.adicionar_saldo(POOCoin(self.saldo_inicial), notify=False)
+        return usuario
+# ==========================
+#   Matchmaking
+# ==========================
+@dataclass
+class Match:
+    jogo: str
+    jogadores: List[str] = field(default_factory=list)
+
+    def iniciar(self) -> None:
+        print(f"Partida iniciada em {self.jogo} com jogadores: {', '.join(self.jogadores)}")
 
 
-if __name__ == "__main__":
-    # ================= Pré-configuração =================
-    plataforma_gaming = PlataformaSingleton()
+class MatchmakingQueue:
+    def __init__(self, tamanho_partida: int = 2):
+        self.filas: Dict[str, List[str]] = {}
+        self.tamanho_partida = max(2, int(tamanho_partida))
 
-    # [Builder] para criar Admin
-    admin_builder = (UsuarioBuilder()
-                     .com_nome("lucas")
-                     .com_email("POO@ic.com")
-                     .com_senha("admin123")
-                     .como_admin()
-                     .com_saldo_inicial(500))
-    plataforma_gaming.usuarios["admin"] = admin_builder.construir()
+    def entrar_fila(self, jogo: str, usuario: str) -> None:
+        fila = self.filas.setdefault(jogo, [])
+        if usuario in fila:
+            print("Você já está na fila.")
+            return
+        fila.append(usuario)
+        print(f"{usuario} entrou na fila de {jogo}.")
 
-    # Jogos com plataformas
-    jogo1 = JogoOnline("Aventuras_em_POO", POOCoin(100.0), {"PC", "Console"})
-    jogo2 = JogoOffline("Semestre_Rush", POOCoin(50.0), {"PC"})
-    plataforma_gaming.jogos[jogo1.nome] = jogo1
-    plataforma_gaming.jogos[jogo2.nome] = jogo2
+    def tentar_formar_partida(self, jogo: str) -> Optional[Match]:
+        fila = self.filas.get(jogo, [])
+        if len(fila) >= self.tamanho_partida:
+            jogadores = [fila.pop(0) for _ in range(self.tamanho_partida)]
+            partida = Match(jogo=jogo, jogadores=jogadores)
+            partida.iniciar()
+            return partida
+        print(f"Aguardando mais jogadores para formar partida em {jogo} ({len(fila)}/{self.tamanho_partida}).")
+        return None
 
-    # Itens e fórum (silencioso)
-    jogo1.adicionar_item_loja('Ponto_Extra', POOCoin(10.0))
-    jogo1.postar_no_forum("lucas", "Não sei programar em Python! :(", notify=False)
 
-    # Achievements exemplo
-    jogo1.registrar_achievement(Achievement("P100", "Primeiros Passos", "Marque ao menos 100 pontos.", 100))
-    jogo1.registrar_achievement(Achievement("P1000", "Veterano", "Marque ao menos 1000 pontos.", 1000))
+# ==========================
+#   Plataforma
+# ==========================
+class Plataforma:
+    def __init__(self):
+        self.usuarios: Dict[str, Usuario] = {}
+        self.jogos: Dict[str, Jogo] = {}
+        self.matchmaking = MatchmakingQueue(tamanho_partida=2)
+        # cadeia de suporte (CoR)
+        self._suporte_chain = AtendimentoBasico(AtendimentoAvancado(AtendimentoFallback()))
 
-    # Usuários (pré-configuração silenciosa)
-    luu = UsuarioAdulto("luu", "luu@ic.com", "luu123", 30)
-    rafael = UsuarioInfantil("rafael", "rafael@email.com", "rafael123", 12, "luu@ic.com")
-    maria = UsuarioInfantil("maria", "maria@email.com", "maria123", 10, "luu@ic.com")
-    plataforma_gaming.usuarios.update({luu.nome: luu, rafael.nome: rafael, maria.nome: maria})
+    @safe_call(default_return=None)
+    def encontrar_usuario(self, nome_ou_email: str) -> Optional[Usuario]:
+        for user in self.usuarios.values():
+            if user.nome == nome_ou_email or user.email == nome_ou_email:
+                return user
+        return None
 
-    # Saldos (silencioso)
-    luu.adicionar_saldo(POOCoin(250), notify=False)
-    rafael.adicionar_saldo(POOCoin(75), notify=False)
+    # Chain of Responsibility – processa tickets de um usuário
+    @safe_call(default_return=None)
+    def processar_tickets_usuario(self, usuario: Usuario) -> None:
+        for t in usuario.listar_tickets():
+            if t.get('status') == 'Aberto':
+                self._suporte_chain.handle(t)
 
-    # Aprovação e permissões do infantil
-    rafael.status_aprovacao = 'aprovado'
-    rafael.permissoes['pode_comprar_itens'] = True
-    rafael.permissoes['pode_comprar_jogos'] = False
 
-    # Mensagem para o responsável
-    luu.adicionar_mensagem(
-        f"Sistema: A usuária '{maria.nome}' ({maria.idade} anos) solicitou aprovação como sua dependente."
-    )
+# ==========================
+#   Singleton (Criacional)
+# ==========================
+class PlataformaSingleton(Plataforma):
+    _instance = None
 
-    # Pontuações e achievements (silenciosos)
-    jogo1.adicionar_pontuacao(luu.nome, 2100, notify=False)
-    jogo1.adicionar_pontuacao(rafael.nome, 1250, notify=False)
-    for u in (luu, rafael):
-        pontos = jogo1.pontuacoes.get(u.nome, 0)
-        novos = jogo1.verificar_achievements_para(u.nome, pontos)
-        u.registrar_achievements_desbloqueados(jogo1, novos, notify=False)
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            Plataforma.__init__(cls._instance)
+        return cls._instance
 
-    # Compra do jogo apenas para o adulto (silenciosa)
-    luu.comprar_jogo(jogo1, notify=False)
 
-    # ================= Executar CLI =================
-    executar(plataforma_gaming)
+# ==========================
+#   Facade (Estrutural)
+# ==========================
+class PlataformaFacade:
+    """Fachada opcional para operações comuns; não substitui a API existente."""
+    def __init__(self, plataforma: Plataforma):
+        self.p = plataforma
+
+    @safe_call()
+    def cadastrar_usuario_adulto(self, nome: str, email: str, senha: str, idade: int) -> UsuarioAdulto:
+        u = UsuarioAdulto(nome, email, senha, idade)
+        self.p.usuarios[nome] = u
+        return u
+
+    @safe_call()
+    def cadastrar_usuario_infantil(self, nome: str, email: str, senha: str, idade: int, responsavel_email: str) -> UsuarioInfantil:
+        u = UsuarioInfantil(nome, email, senha, idade, responsavel_email)
+        self.p.usuarios[nome] = u
+        return u
+
+    @safe_call()
+    def publicar_patch(self, nome_jogo: str, versao: str, notas: str) -> None:
+        jogo = self.p.jogos.get(nome_jogo)
+        if jogo:
+            jogo.publicar_patch(versao, notas)
+
+    @safe_call()
+    def comprar_jogo(self, usuario: Usuario, nome_jogo: str) -> None:
+        jogo = self.p.jogos.get(nome_jogo)
+        if jogo:
+            usuario.comprar_jogo(jogo)
+
+    @safe_call()
+    def registrar_pacote_achievements(self, nome_jogo: str, pack: AchievementPack) -> None:
+        jogo = self.p.jogos.get(nome_jogo)
+        if jogo:
+            jogo.registrar_achievement_component(pack)
+
