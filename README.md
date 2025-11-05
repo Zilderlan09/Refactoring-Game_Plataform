@@ -55,7 +55,7 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 
 ---
 
-### 🧩 Novos sistemas
+## 🧩 Novos sistemas
 - 🏅 **Achievements**: cadastro por jogo + desbloqueio automático por pontuação  
 - 🔄 **Patch Management**: `versao_atual`, `publicar_patch()`, `listar_patches()`, `atualizar_jogo()`  
 - 🤝 **Matchmaking**: `MatchmakingQueue` (fila por jogo) + `Match` (partida)  
@@ -65,38 +65,38 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 ---
 
 ## 🏗️ Padrões Criacionais
-| Padrão | Local | Função |
-|---------|--------|--------|
-| **Singleton** | `PlataformaSingleton` | Garante uma única instância da plataforma. |
-| **Factory Method** | `UsuarioAdultoFactory` e `UsuarioInfantilFactory` | Cria usuários de diferentes tipos dinamicamente. |
-| **Builder** | `UsuarioBuilder` | Constrói objetos `Admin` passo a passo com saldo inicial e privilégios. |
+| Padrão | Local | Função | Exemplo |
+|---------|--------|--------|---------|
+| **Singleton** | `PlataformaSingleton` | Garante uma única instância da plataforma. | ```python class PlataformaSingleton(Plataforma): _instance = None def __new__(cls, *args, **kwargs): ...``` |
+| **Factory Method** | `UsuarioAdultoFactory`, `UsuarioInfantilFactory` | Cria usuários de diferentes tipos dinamicamente. | ```python factory = UsuarioInfantilFactory("pai@email.com"); user = factory.criar_usuario("filho", "email", "senha", 10)``` |
+| **Builder** | `UsuarioBuilder` | Constrói objetos `Admin` passo a passo com saldo inicial e privilégios. | ```python admin = UsuarioBuilder().como_admin().com_nome("Otávio").com_saldo_inicial(100).construir()``` |
 
 ---
 
 ## 🧩 Padrões Estruturais
-| Padrão | Local | Função |
-|---------|--------|--------|
-| **Adapter** | `ForumAdapter` | Adapta APIs externas de fórum (`ExternalForumAPI`) para interface interna (`IForum`). |
-| **Composite** | `AchievementPack` | Agrupa achievements em estruturas hierárquicas reutilizáveis. |
-| **Facade** | `PlataformaFacade` | Simplifica operações complexas (compra, cadastro, patch) em uma interface única. |
+| Padrão | Local | Função | Exemplo |
+|---------|--------|--------|---------|
+| **Adapter** | `ForumAdapter` | Adapta APIs externas de fórum (`ExternalForumAPI`) para interface interna (`IForum`). | ```python forum_externo = ForumAdapter(ExternalForumAPI())``` |
+| **Composite** | `AchievementPack` | Agrupa achievements em estruturas hierárquicas reutilizáveis. | ```python pack = AchievementPack("Bronze"); pack.adicionar(AchievementLeaf(Achievement("1", "Começo", "Jogue uma vez")))``` |
+| **Facade** | `PlataformaFacade` | Simplifica operações complexas (compra, cadastro, patch) em uma interface única. | ```python facade.cadastrar_usuario_adulto("Otávio", "email", "senha", 20)``` |
 
 ---
 
 ## 🧠 Padrões Comportamentais
-| Padrão | Local | Função |
-|---------|--------|--------|
-| **Strategy** | `CalculadorPontuacaoNormal` / `CalculadorPontuacaoBonus` | Define estratégias de cálculo de pontuação intercambiáveis. |
-| **Visitor** | `JogoVisitor` e `JogoRankingVisitor` | Permite adicionar novas operações sobre `Jogo` sem alterar suas classes. |
-| **Chain of Responsibility** | `SuporteHandler`, `AtendimentoBasico`, `AtendimentoAvancado`, `AtendimentoFallback` | Encadeia níveis de suporte para resolver tickets conforme o tipo. |
+| Padrão | Local | Função | Exemplo |
+|---------|--------|--------|---------|
+| **Strategy** | `CalculadorPontuacaoNormal`, `CalculadorPontuacaoBonus` | Define estratégias de cálculo de pontuação intercambiáveis. | ```python jogo.set_estrategia_pontuacao(CalculadorPontuacaoBonus())``` |
+| **Visitor** | `JogoVisitor`, `JogoRankingVisitor` | Permite adicionar novas operações sobre `Jogo` sem alterar suas classes. | ```python jogo_online.aceitar_visitor(JogoRankingVisitor())``` |
+| **Chain of Responsibility** | `SuporteHandler`, `AtendimentoBasico`, `AtendimentoAvancado`, `AtendimentoFallback` | Encadeia níveis de suporte para resolver tickets conforme o tipo. | ```python self._suporte_chain = AtendimentoBasico(AtendimentoAvancado(AtendimentoFallback()))``` |
 
 ---
 
 ## ⚡ Tratamento de Exceções
-| Padrão | Local | Função |
-|---------|--------|--------|
-| **safe_call** | Decorador aplicado em métodos da `Plataforma` e `Facade` | Captura exceções em runtime e evita quebra da execução. |
-| **try_catch_wrapper** | Wrapper de funções críticas | Garante rollback e logs em falhas internas. |
-| **ValidationError** | Classe de exceção personalizada | Lança erros significativos em casos de entrada inválida. |
+| Padrão | Local | Função | Exemplo |
+|---------|--------|--------|---------|
+| **safe_call** | Decorador aplicado em métodos da `Plataforma` e `Facade` | Captura exceções em runtime e evita quebra da execução. | ```python @safe_call(log=True) def processar_tickets_usuario(...): ...``` |
+| **try_catch_wrapper** | Wrapper de funções críticas | Garante rollback e logs em falhas internas. | ```python @try_catch_wrapper def comprar_jogo(...): ...``` |
+| **ValidationError** | Classe de exceção personalizada | Lança erros significativos em casos de entrada inválida. | ```python raise ValidationError("Email inválido")``` |
 
 ---
 
@@ -105,7 +105,7 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 - ✅ Corrigido `AttributeError` em `JogoOnline` (método `verificar_achievements_para` herdado de `Jogo`).  
 - ✅ Corrigido `NameError` da classe `MatchmakingQueue`.  
 - ✅ Estrutura reorganizada para manter ordem lógica e dependências resolvidas.  
-- ✅ Inserção de tratamento de exceções em toda a API da `Plataforma` e `Facade`.  
+- ✅ Inserção de tratamento de exceções em toda a API da `Plataforma` e `Facade`.    
 
 ---
 
