@@ -91,7 +91,7 @@ Plataforma de jogos em linha de comando com catálogo, contas (adulto/infantil/a
 
 ---
 
-## ⚡ Padrões de Exceção
+## ⚡ Exceções
 | Padrão | Local | Função |
 |---------|--------|--------|
 | **safe_call** | Decorador aplicado em métodos da `Plataforma` e `Facade` | Captura exceções em runtime e evita quebra da execução. |
